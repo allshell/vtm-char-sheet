@@ -1,6 +1,8 @@
 # VtM 角色卡录入辅助工具 v_0.0.2
 
-本工具专为《吸血鬼：避世潜藏》（Vampire: The Masquerade）玩家设计，旨在简化 **SealDice (海豹骰)** 相关插件的角色卡录入流程 。支持 V5 与 V20 双版本规则，并实现了与 V5 自动 Excel 人物卡的深度互通 。
+本工具专为《吸血鬼：避世潜藏》（Vampire: The Masquerade）玩家设计，旨在简化 **SealDice (海豹骰)** 相关插件的角色卡录入流程 。支持 V5 与 V20 双版本规则，并实现与 V5 自动 Excel 人物卡基本互通。
+
+[点击此处直接使用](https://allshell.github.io/vtm-char-sheet/)
 
 ## 核心功能
 
