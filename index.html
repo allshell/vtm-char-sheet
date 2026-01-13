@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VtM 角色卡生成器 (适配 SealDice vtm 插件)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        blood: '#8a0b0b',
+                        darkbg: '#1a1a1a',
+                        panel: '#2d2d2d'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 自定义滚动条和其他微调 */
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .input-group label { display: block; font-size: 0.875rem; color: #a1a1a1; margin-bottom: 0.25rem; }
+        .stat-input { 
+            width: 100%; 
+            background-color: #383838; 
+            border: 1px solid #4a4a4a; 
+            color: white; 
+            padding: 0.5rem; 
+            border-radius: 0.375rem; 
+            transition: border-color 0.2s;
+        }
+        .stat-input:focus { outline: none; border-color: #8a0b0b; }
+        .category-title { color: #cc3333; font-weight: bold; border-bottom: 2px solid #5c1818; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header class="bg-blood text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wider">VtM 角色录入器</h1>
+            <div class="flex space-x-2 bg-black/30 p-1 rounded">
+                <button onclick="switchMode('V5')" id="btn-v5" class="px-4 py-1 rounded transition-colors bg-white text-blood font-bold">V5</button>
+                <button onclick="switchMode('V20')" id="btn-v20" class="px-4 py-1 rounded transition-colors text-gray-300 hover:bg-white/10">V20</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 flex-grow mb-20">
+        
+        <div class="bg-panel p-4 rounded-lg mb-6 shadow-md border-l-4 border-blood">
+            <p class="text-sm text-gray-300">
+                当前模式: <span id="current-mode-display" class="font-bold text-white">V5</span><br>
+                填写下方数据，点击底部按钮生成指令。将生成的指令复制并发送给搭载了 VtM 插件的 SealDice。
+            </p>
+        </div>
+
+        <form id="char-form" onsubmit="event.preventDefault();">
+            <div id="section-core" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+
+            <h2 class="category-title">属性 (Attributes)</h2>
+            <div id="section-attrs" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"></div>
+
+            <h2 class="category-title" id="skills-title">技能 (Skills)</h2>
+            <div id="section-skills" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"></div>
+
+            <div id="container-virtues" class="hidden">
+                <h2 class="category-title">美德 (Virtues)</h2>
+                <div id="section-virtues" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"></div>
+            </div>
+
+            <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                <h2 class="text-xl font-bold text-red-400">律能与其他 (Custom)</h2>
+                <button onclick="addCustomField()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">+ 添加项目</button>
+            </div>
+            <div id="section-custom" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                </div>
+        </form>
+    </main>
+
+    <footer class="fixed bottom-0 left-0 w-full bg-darkbg border-t border-gray-700 p-4 shadow-2xl z-50">
+        <div class="container mx-auto flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div class="w-full md:w-3/4">
+                <div class="relative">
+                    <input type="text" id="output-cmd" readonly 
+                        class="w-full bg-black border border-gray-600 text-green-400 font-mono p-3 rounded pr-24 focus:outline-none"
+                        placeholder="点击右侧生成按钮...">
+                    <button onclick="copyCommand()" class="absolute right-1 top-1 bottom-1 bg-gray-800 hover:bg-gray-700 text-white px-3 rounded text-xs transition">
+                        复制指令
+                    </button>
+                </div>
+            </div>
+            <button onclick="generateCommand()" class="w-full md:w-1/4 bg-blood hover:bg-red-800 text-white font-bold py-3 rounded shadow-lg transition transform active:scale-95">
+                生成录卡指令
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        // --- 数据定义 (需与 vtm_1.8.3.js 保持一致) ---
+        const DATA = {
+            V5: {
+                core: ["HP", "HPMax", "意志力", "意志力Max", "人性", "饥渴"],
+                attrs: {
+                    "生理": ["力量", "敏捷", "体质"],
+                    "社会": ["魅力", "操控", "沉着"],
+                    "心智": ["智力", "机智", "决心"]
+                },
+                skills: {
+                    "生理": ["运动", "肉搏", "驾驶", "枪械", "盗窃", "白刃", "潜行", "生存", "手艺"],
+                    "社会": ["驯兽", "礼仪", "洞悉", "威吓", "领导", "表演", "说服", "街头", "欺瞒"],
+                    "心智": ["学术", "觉察", "金融", "调查", "医疗", "神秘", "政治", "科学", "科技"]
+                }
+            },
+            V20: {
+                core: ["血池", "血池Max", "意志力", "意志力Max", "人性/心路等级"],
+                attrs: {
+                    "生理": ["力量", "敏捷", "耐力"],
+                    "社会": ["魅力", "操控", "外貌"],
+                    "心智": ["感知", "智力", "机智"]
+                },
+                abilities: { // 对应V20的天赋/技能/知识
+                    "天赋": ["警觉", "运动", "格斗", "闪避", "超感", "表达", "胁迫", "领导", "黑街", "掩饰"],
+                    "技能": ["驯兽", "手艺", "驾驶", "礼仪", "枪械", "白刃", "表演", "潜行", "生存", "盗窃"],
+                    "知识": ["学术", "电脑", "金融", "调查", "法律", "医学", "神秘", "政治", "科学", "科技"]
+                },
+                virtues: ["良知/坚信", "自控/本能", "勇气"]
+            }
+        };
+
+        let currentMode = 'V5';
+        let customFieldCount = 0;
+
+        // --- 初始化与渲染 ---
+
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('current-mode-display').innerText = mode;
+            
+            // 更新按钮样式
+            const btnV5 = document.getElementById('btn-v5');
+            const btnV20 = document.getElementById('btn-v20');
+            if (mode === 'V5') {
+                btnV5.className = "px-4 py-1 rounded transition-colors bg-white text-blood font-bold shadow";
+                btnV20.className = "px-4 py-1 rounded transition-colors text-gray-300 hover:bg-white/10";
+            } else {
+                btnV20.className = "px-4 py-1 rounded transition-colors bg-white text-blood font-bold shadow";
+                btnV5.className = "px-4 py-1 rounded transition-colors text-gray-300 hover:bg-white/10";
+            }
+
+            renderForm();
+        }
+
+        function createInput(key, label) {
+            return `
+                <div class="input-group">
+                    <label>${label || key}</label>
+                    <input type="number" data-key="${key}" class="stat-input" placeholder="0" min="0" max="10">
+                </div>
+            `;
+        }
+
+        function renderSection(containerId, dataObj, isGrouped = false) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            if (isGrouped) {
+                // 处理 { "生理": [...], "社会": [...] } 结构
+                for (const [groupName, items] of Object.entries(dataObj)) {
+                    const col = document.createElement('div');
+                    col.className = 'bg-panel p-4 rounded border border-gray-700';
+                    let html = `<h3 class="text-gray-400 font-bold mb-3 text-center border-b border-gray-600 pb-1">${groupName}</h3><div class="space-y-3">`;
+                    items.forEach(key => {
+                        html += createInput(key);
+                    });
+                    html += '</div>';
+                    col.innerHTML = html;
+                    container.appendChild(col);
+                }
+            } else {
+                // 处理普通数组
+                dataObj.forEach(key => {
+                    const div = document.createElement('div');
+                    div.innerHTML = createInput(key);
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        function renderForm() {
+            // 清空现有输入但保留自定义（可选，这里选择保留自定义防止手误切换丢失律能）
+            // document.getElementById('section-custom').innerHTML = ''; 
+
+            const data = DATA[currentMode];
+
+            // 1. 渲染核心
+            const coreContainer = document.getElementById('section-core');
+            coreContainer.innerHTML = '';
+            data.core.forEach(key => {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = createInput(key);
+                coreContainer.appendChild(wrapper);
+            });
+
+            // 2. 渲染属性
+            renderSection('section-attrs', data.attrs, true);
+
+            // 3. 渲染技能/能力
+            const skillTitle = document.getElementById('skills-title');
+            skillTitle.innerText = currentMode === 'V5' ? '技能 (Skills)' : '能力 (Abilities)';
+            renderSection('section-skills', currentMode === 'V5' ? data.skills : data.abilities, true);
+
+            // 4. 渲染美德 (V20 only)
+            const virtueContainer = document.getElementById('container-virtues');
+            if (currentMode === 'V20') {
+                virtueContainer.classList.remove('hidden');
+                renderSection('section-virtues', data.virtues, false); // 美德是数组
+            } else {
+                virtueContainer.classList.add('hidden');
+            }
+            
+            // 清空指令框
+            document.getElementById('output-cmd').value = '';
+        }
+
+        // --- 自定义字段逻辑 ---
+
+        function addCustomField() {
+            customFieldCount++;
+            const container = document.getElementById('section-custom');
+            const div = document.createElement('div');
+            div.className = "flex space-x-2 items-end bg-panel p-2 rounded border border-gray-600";
+            div.id = `custom-${customFieldCount}`;
+            div.innerHTML = `
+                <div class="flex-grow">
+                    <label class="text-xs text-gray-400">项目名称 (如: 支配术)</label>
+                    <input type="text" class="custom-name w-full bg-black/50 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-red-500 outline-none" placeholder="名称">
+                </div>
+                <div class="w-16">
+                    <label class="text-xs text-gray-400">等级</label>
+                    <input type="number" class="custom-val w-full bg-black/50 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-red-500 outline-none" placeholder="0">
+                </div>
+                <button onclick="removeCustomField('custom-${customFieldCount}')" class="text-red-500 hover:text-red-300 font-bold px-2 py-1">×</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeCustomField(id) {
+            document.getElementById(id).remove();
+        }
+
+        // --- 生成指令逻辑 ---
+
+        function generateCommand() {
+            let cmdParts = [];
+            
+            // 收集所有标准输入
+            const inputs = document.querySelectorAll('#char-form input[data-key]');
+            inputs.forEach(input => {
+                const val = parseInt(input.value);
+                if (!isNaN(val) && val !== 0) { // 过滤掉0，减短指令长度
+                    const key = input.getAttribute('data-key');
+                    cmdParts.push(`${key}=${val}`);
+                }
+            });
+
+            // 收集自定义输入
+            const customDivs = document.getElementById('section-custom').children;
+            for (let div of customDivs) {
+                const nameInput = div.querySelector('.custom-name');
+                const valInput = div.querySelector('.custom-val');
+                if (nameInput && valInput) {
+                    const name = nameInput.value.trim();
+                    const val = parseInt(valInput.value);
+                    if (name && !isNaN(val)) {
+                        cmdParts.push(`${name}=${val}`);
+                    }
+                }
+            }
+
+            if (cmdParts.length === 0) {
+                alert("未填写任何有效数据 (0值会自动忽略)");
+                return;
+            }
+
+            // 加上切换模式的指令建议，虽然 .vst 会自动识别当前模式，但最好确保用户在正确的模式下
+            // 这里为了简洁，直接生成 .vst 指令。用户应自行确保 .vset 正确，或者我们在指令前加前缀
+            
+            // 策略：生成 .vst 指令
+            const finalCmd = `.vst ${cmdParts.join(' ')}`;
+            const outputEl = document.getElementById('output-cmd');
+            outputEl.value = finalCmd;
+            
+            // 视觉反馈
+            outputEl.classList.add('bg-green-900');
+            setTimeout(() => outputEl.classList.remove('bg-green-900'), 200);
+        }
+
+        function copyCommand() {
+            const copyText = document.getElementById("output-cmd");
+            if (!copyText.value) return;
+            
+            copyText.select();
+            copyText.setSelectionRange(0, 99999); 
+            navigator.clipboard.writeText(copyText.value).then(() => {
+                const btn = document.querySelector('button[onclick="copyCommand()"]');
+                const originalText = btn.innerText;
+                btn.innerText = "已复制!";
+                setTimeout(() => btn.innerText = originalText, 1500);
+            });
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            renderForm();
+        }
+    </script>
+</body>
+</html>
