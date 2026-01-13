@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VtM 角色卡生成器 (适配 SealDice vtm 插件)</title>
+    <title>VtM 角色卡生成器 v_0.0.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -19,7 +20,6 @@
         }
     </script>
     <style>
-        /* 自定义滚动条和其他微调 */
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .input-group label { display: block; font-size: 0.875rem; color: #a1a1a1; margin-bottom: 0.25rem; }
         .stat-input { 
@@ -33,6 +33,20 @@
         }
         .stat-input:focus { outline: none; border-color: #8a0b0b; }
         .category-title { color: #cc3333; font-weight: bold; border-bottom: 2px solid #5c1818; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+        /* 文件上传按钮样式 */
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-upload-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -49,6 +63,22 @@
 
     <main class="container mx-auto p-4 flex-grow mb-20">
         
+        <div class="bg-panel p-4 rounded-lg mb-6 shadow-md border-l-4 border-green-700 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-sm text-gray-300">
+                <h3 class="font-bold text-white text-lg mb-1">Excel 自动卡互通 (V5 Only)</h3>
+                <p>上传 .xlsm 人物卡自动填表，或修改后导出新的 .xlsm 文件（安全考虑暂不处理 Excel 宏，因此不存取宏相关数据，包括生命、意志、饥渴、人性，导出文件也不包含宏特性，仅作为存档使用）。</p>
+            </div>
+            <div class="flex gap-3">
+                <div class="file-upload-wrapper bg-blue-700 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded shadow cursor-pointer">
+                    <span>📂 导入 Excel</span>
+                    <input type="file" id="excel-import" accept=".xlsx, .xlsm, .xls" onchange="handleExcelImport(this)">
+                </div>
+                <button onclick="handleExcelExport()" id="btn-export" class="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow opacity-50 cursor-not-allowed" disabled>
+                    💾 导出 Excel
+                </button>
+            </div>
+        </div>
+
         <div class="bg-panel p-4 rounded-lg mb-6 shadow-md border-l-4 border-blood">
             <p class="text-sm text-gray-300">
                 当前模式: <span id="current-mode-display" class="font-bold text-white">V5</span><br>
@@ -98,7 +128,42 @@
     </footer>
 
     <script>
-        // --- 数据定义 (需与 vtm_1.8.3.js 保持一致) ---
+        // --- V5 Excel 映射配置 ---
+        // 格式: "属性名": "单元格坐标"
+        const V5_EXCEL_MAP = {
+            // --- 核心 ---
+            "HP": "C94",
+            "意志力": "C96",
+            "人性": "C98",
+            "饥渴": "H96",
+
+            // --- 属性 (Attributes) ---
+            "力量": "C68", "敏捷": "C69", "体质": "C70",
+            "魅力": "F68", "操控": "F69", "沉着": "F70",
+            "智力": "I68", "机智": "I69", "决心": "I70",
+
+            // --- 技能 (Skills) ---
+            "运动": "C82", "肉搏": "C83", "手艺": "C84", "驾驶": "C85", "枪械": "C86",
+            "盗窃": "C87", "白刃": "C88", "潜行": "C89", "生存": "C90",
+            
+            "驯兽": "F82", "礼仪": "F83", "洞悉": "F84", "威吓": "F85", "领导": "F86", 
+            "表演": "F87", "说服": "F88", "街头": "F89", "欺瞒": "F90",
+            
+            "学术": "I82", "觉察": "I83", "金融": "I84", "调查": "I85", "医疗": "I86", 
+            "神秘": "I87", "政治": "I88", "科学": "I89", "科技": "I90"
+        };
+
+        // --- V5 自定义项目坐标配置 ---
+        // 依次对应自动卡中的5个自定义血律槽位：{ name: 名称单元格, val: 等级单元格 }
+        const V5_CUSTOM_COORDS = [
+            { name: "K14", val: "K16" },
+            { name: "K21", val: "K23" },
+            { name: "K28", val: "K30" },
+            { name: "K35", val: "K37" },
+            { name: "K42", val: "K44" }
+        ];
+
+        // --- 数据定义 ---
         const DATA = {
             V5: {
                 core: ["HP", "HPMax", "意志力", "意志力Max", "人性", "饥渴"],
@@ -120,7 +185,7 @@
                     "社会": ["魅力", "操控", "外貌"],
                     "心智": ["感知", "智力", "机智"]
                 },
-                abilities: { // 对应V20的天赋/技能/知识
+                abilities: { 
                     "天赋": ["警觉", "运动", "格斗", "闪避", "超感", "表达", "胁迫", "领导", "黑街", "掩饰"],
                     "技能": ["驯兽", "手艺", "驾驶", "礼仪", "枪械", "白刃", "表演", "潜行", "生存", "盗窃"],
                     "知识": ["学术", "电脑", "金融", "调查", "法律", "医学", "神秘", "政治", "科学", "科技"]
@@ -131,6 +196,7 @@
 
         let currentMode = 'V5';
         let customFieldCount = 0;
+        let globalWorkbook = null; // 存储导入的 Excel 对象以便导出
 
         // --- 初始化与渲染 ---
 
@@ -138,7 +204,6 @@
             currentMode = mode;
             document.getElementById('current-mode-display').innerText = mode;
             
-            // 更新按钮样式
             const btnV5 = document.getElementById('btn-v5');
             const btnV20 = document.getElementById('btn-v20');
             if (mode === 'V5') {
@@ -147,6 +212,18 @@
             } else {
                 btnV20.className = "px-4 py-1 rounded transition-colors bg-white text-blood font-bold shadow";
                 btnV5.className = "px-4 py-1 rounded transition-colors text-gray-300 hover:bg-white/10";
+            }
+            
+            // Excel 功能目前仅适配 V5
+            const importInput = document.getElementById('excel-import');
+            if (mode === 'V20') {
+                importInput.disabled = true;
+                importInput.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+                importInput.parentElement.title = "Excel 功能目前仅适配 V5";
+            } else {
+                importInput.disabled = false;
+                importInput.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+                importInput.parentElement.title = "";
             }
 
             renderForm();
@@ -166,7 +243,6 @@
             container.innerHTML = '';
 
             if (isGrouped) {
-                // 处理 { "生理": [...], "社会": [...] } 结构
                 for (const [groupName, items] of Object.entries(dataObj)) {
                     const col = document.createElement('div');
                     col.className = 'bg-panel p-4 rounded border border-gray-700';
@@ -179,7 +255,6 @@
                     container.appendChild(col);
                 }
             } else {
-                // 处理普通数组
                 dataObj.forEach(key => {
                     const div = document.createElement('div');
                     div.innerHTML = createInput(key);
@@ -189,12 +264,7 @@
         }
 
         function renderForm() {
-            // 清空现有输入但保留自定义（可选，这里选择保留自定义防止手误切换丢失律能）
-            // document.getElementById('section-custom').innerHTML = ''; 
-
             const data = DATA[currentMode];
-
-            // 1. 渲染核心
             const coreContainer = document.getElementById('section-core');
             coreContainer.innerHTML = '';
             data.core.forEach(key => {
@@ -202,26 +272,167 @@
                 wrapper.innerHTML = createInput(key);
                 coreContainer.appendChild(wrapper);
             });
-
-            // 2. 渲染属性
             renderSection('section-attrs', data.attrs, true);
-
-            // 3. 渲染技能/能力
             const skillTitle = document.getElementById('skills-title');
             skillTitle.innerText = currentMode === 'V5' ? '技能 (Skills)' : '能力 (Abilities)';
             renderSection('section-skills', currentMode === 'V5' ? data.skills : data.abilities, true);
-
-            // 4. 渲染美德 (V20 only)
             const virtueContainer = document.getElementById('container-virtues');
             if (currentMode === 'V20') {
                 virtueContainer.classList.remove('hidden');
-                renderSection('section-virtues', data.virtues, false); // 美德是数组
+                renderSection('section-virtues', data.virtues, false);
             } else {
                 virtueContainer.classList.add('hidden');
             }
-            
-            // 清空指令框
             document.getElementById('output-cmd').value = '';
+        }
+
+        // --- Excel 处理逻辑 ---
+
+function handleExcelImport(input) {
+            if (currentMode !== 'V5') {
+                alert("Excel 导入功能目前仅支持 V5 模式");
+                return;
+            }
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                try {
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    globalWorkbook = workbook; 
+
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // 1. 读取标准属性
+                    for (const [key, cellRef] of Object.entries(V5_EXCEL_MAP)) {
+                        const cell = worksheet[cellRef];
+                        if (cell && cell.v !== undefined) {
+                            const inputEl = document.querySelector(`input[data-key="${key}"]`);
+                            if (inputEl) {
+                                let val = parseInt(cell.v);
+                                if (!isNaN(val)) {
+                                    inputEl.value = val;
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. 读取自定义项目 (新增部分)
+                    // 先清空界面上现有的自定义框，防止重复叠加
+                    document.getElementById('section-custom').innerHTML = '';
+                    customFieldCount = 0; 
+
+                    V5_CUSTOM_COORDS.forEach(coord => {
+                        const nameCell = worksheet[coord.name];
+                        const valCell = worksheet[coord.val];
+
+                        // 如果 Excel 该位置有填写名称，则在网页上创建一个对应输入框并填值
+                        if (nameCell && nameCell.v) {
+                            addCustomField(); // 自动点击“添加项目”
+                            
+                            // 获取刚刚创建的那个输入框行 (ID 是 custom-1, custom-2...)
+                            const currentId = `custom-${customFieldCount}`;
+                            const div = document.getElementById(currentId);
+                            
+                            if (div) {
+                                const nameInput = div.querySelector('.custom-name');
+                                const valInput = div.querySelector('.custom-val');
+                                
+                                nameInput.value = nameCell.v; // 填名称
+                                if (valCell && valCell.v !== undefined) {
+                                    valInput.value = parseInt(valCell.v) || 0; // 填等级
+                                }
+                            }
+                        }
+                    });
+
+                    // 启用导出按钮
+                    const btnExport = document.getElementById('btn-export');
+                    btnExport.disabled = false;
+                    btnExport.classList.remove('opacity-50', 'cursor-not-allowed');
+                    alert("导入成功！标准属性与自定义项目已加载。");
+
+                } catch (err) {
+                    console.error(err);
+                    alert("读取 Excel 失败，请确认文件格式是否正确。");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+function handleExcelExport() {
+            if (!globalWorkbook) {
+                alert("请先导入一个 Excel 模板文件，系统将在该文件基础上修改并导出。");
+                return;
+            }
+            if (currentMode !== 'V5') return;
+
+            try {
+                const firstSheetName = globalWorkbook.SheetNames[0];
+                const worksheet = globalWorkbook.Sheets[firstSheetName];
+
+                // 1. 写入标准属性
+                const inputs = document.querySelectorAll('#char-form input[data-key]');
+                inputs.forEach(input => {
+                    const key = input.getAttribute('data-key');
+                    const val = parseInt(input.value);
+                    const cellRef = V5_EXCEL_MAP[key];
+
+                    if (cellRef && !isNaN(val)) {
+                        if (!worksheet[cellRef]) worksheet[cellRef] = { t: 'n' };
+                        worksheet[cellRef].v = val;
+                        worksheet[cellRef].t = 'n';
+                    }
+                });
+
+                // 2. 写入自定义项目 (新增部分)
+                const customDivs = document.getElementById('section-custom').children;
+                
+                // 遍历 Excel 中预留的5个槽位
+                V5_CUSTOM_COORDS.forEach((coord, index) => {
+                    // 尝试获取网页上对应的第 index 个自定义项
+                    const div = customDivs[index];
+                    
+                    if (div) {
+                        // 如果网页上有这一项，则写入 Excel
+                        const nameInput = div.querySelector('.custom-name');
+                        const valInput = div.querySelector('.custom-val');
+                        const nameVal = nameInput.value.trim();
+                        const valVal = parseInt(valInput.value);
+
+                        if (nameVal) {
+                            // 写入名称
+                            if (!worksheet[coord.name]) worksheet[coord.name] = { t: 's' };
+                            worksheet[coord.name].v = nameVal;
+                            worksheet[coord.name].t = 's'; // 类型：字符串
+
+                            // 写入等级
+                            if (!worksheet[coord.val]) worksheet[coord.val] = { t: 'n' };
+                            worksheet[coord.val].v = !isNaN(valVal) ? valVal : 0;
+                            worksheet[coord.val].t = 'n'; // 类型：数字
+                        } else {
+                            // 有框但没名字，视为空，擦除 Excel 该位置
+                            if (worksheet[coord.name]) worksheet[coord.name].v = "";
+                            if (worksheet[coord.val]) worksheet[coord.val].v = 0;
+                        }
+                    } else {
+                        // 如果网页上没有这一项（比如你只填了2个，Excel有5个空位），则擦除 Excel 中多余的数据
+                        // 这样可以确保 Excel 文件不会残留上次的数据
+                        if (worksheet[coord.name]) worksheet[coord.name].v = "";
+                        if (worksheet[coord.val]) worksheet[coord.val].v = 0;
+                    }
+                });
+
+                // 导出文件
+                XLSX.writeFile(globalWorkbook, "V5_Character_Updated.xlsm");
+
+            } catch (err) {
+                console.error(err);
+                alert("导出失败：" + err.message);
+            }
         }
 
         // --- 自定义字段逻辑 ---
@@ -234,7 +445,7 @@
             div.id = `custom-${customFieldCount}`;
             div.innerHTML = `
                 <div class="flex-grow">
-                    <label class="text-xs text-gray-400">项目名称 (如: 支配术)</label>
+                    <label class="text-xs text-gray-400">项目名称</label>
                     <input type="text" class="custom-name w-full bg-black/50 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:border-red-500 outline-none" placeholder="名称">
                 </div>
                 <div class="w-16">
@@ -254,18 +465,15 @@
 
         function generateCommand() {
             let cmdParts = [];
-            
-            // 收集所有标准输入
             const inputs = document.querySelectorAll('#char-form input[data-key]');
             inputs.forEach(input => {
                 const val = parseInt(input.value);
-                if (!isNaN(val) && val !== 0) { // 过滤掉0，减短指令长度
+                if (!isNaN(val) && val !== 0) {
                     const key = input.getAttribute('data-key');
                     cmdParts.push(`${key}=${val}`);
                 }
             });
 
-            // 收集自定义输入
             const customDivs = document.getElementById('section-custom').children;
             for (let div of customDivs) {
                 const nameInput = div.querySelector('.custom-name');
@@ -284,15 +492,9 @@
                 return;
             }
 
-            // 加上切换模式的指令建议，虽然 .vst 会自动识别当前模式，但最好确保用户在正确的模式下
-            // 这里为了简洁，直接生成 .vst 指令。用户应自行确保 .vset 正确，或者我们在指令前加前缀
-            
-            // 策略：生成 .vst 指令
             const finalCmd = `.vst ${cmdParts.join(' ')}`;
             const outputEl = document.getElementById('output-cmd');
             outputEl.value = finalCmd;
-            
-            // 视觉反馈
             outputEl.classList.add('bg-green-900');
             setTimeout(() => outputEl.classList.remove('bg-green-900'), 200);
         }
@@ -300,7 +502,6 @@
         function copyCommand() {
             const copyText = document.getElementById("output-cmd");
             if (!copyText.value) return;
-            
             copyText.select();
             copyText.setSelectionRange(0, 99999); 
             navigator.clipboard.writeText(copyText.value).then(() => {
@@ -311,7 +512,6 @@
             });
         }
 
-        // 页面加载时初始化
         window.onload = function() {
             renderForm();
         }
