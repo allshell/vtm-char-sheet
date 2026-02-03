@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.4
-// @description    支持V5/V20双规则，优化角色卡显示与帮助信息，优化多轮投掷输出。
-// @timestamp      1768636319
+// @version        1.8.5
+// @description    支持V5/V20双规则。改正V20暴击规则，新增检定语法的减号支持。
+// @timestamp      1770120820
 // @license        Apache-2
+// @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
 
 if (seal.ext.find('vtm')) {
@@ -141,30 +142,26 @@ function calculateV5Roll(pool, difficulty, hunger, label) {
 }
 
 function calculateV20Roll(pool, difficulty, label) {
+    pool = Math.max(1, Math.floor(pool));
+    
     let allRolls = [];
     let successes = 0;
     let ones = 0;
     let initialSuccessCount = 0;
 
-    function rollV20Recursive(count) {
-        let newRolls = [];
-        for (let i = 0; i < count; i++) {
-            let r = Math.floor(Math.random() * 10) + 1;
-            newRolls.push(r);
-            if (r >= difficulty) {
-                successes++;
-                initialSuccessCount++;
-            }
-            if (r === 1) ones++;
-            if (r === 10) {
-                let exploded = rollV20Recursive(1);
-                newRolls = newRolls.concat(exploded);
-            }
+    for (let i = 0; i < pool; i++) {
+        let r = Math.floor(Math.random() * 10) + 1;
+        allRolls.push(r);
+        
+        if (r >= difficulty) {
+            successes++;
+            initialSuccessCount++;
         }
-        return newRolls;
+        if (r === 1) {
+            ones++;
+        }
     }
 
-    allRolls = rollV20Recursive(pool);
     let netSuccesses = successes - ones;
     let resultStatus = "";
     
@@ -403,6 +400,9 @@ function handleAutoCheck(ctx, msg, cmdArgs, targetMode) {
     // 预处理
     rawArgs = rawArgs.replace(/\s+/g, '').toLowerCase();
     rawArgs = rawArgs.replace(/＋/g, '+').replace(/ｋ/g, 'k');
+    rawArgs = rawArgs.replace(/\s+/g, '').toLowerCase();
+    rawArgs = rawArgs.replace(/＋/g, '+').replace(/ｋ/g, 'k');
+    rawArgs = rawArgs.replace(/－/g, '-');
 
     if (!rawArgs) {
          seal.replyToSender(ctx, msg, `格式错误。请使用: .va {属性+技能}k{难度} (可选: n# 表示投掷n次)`);
@@ -437,22 +437,36 @@ try {
         if (isNaN(difficulty)) difficulty = targetMode === 'V5' ? 0 : 6;
         if (targetMode === 'V20' && difficulty === 0) difficulty = 6;
 
-        const statParts = equationStr.split('+');
+        const tokens = equationStr.split(/([+\-])/).filter(Boolean);
+        
         let totalPool = 0;
         let expressionText = "";
+        let currentSign = 1;
 
-        for (let part of statParts) {
-            if (!part) continue;
-            if (/^\d+$/.test(part)) {
-                let val = parseInt(part);
-                totalPool += val;
-                expressionText += `${val}+`;
-            } else {
-                let realName = getRealVarName(targetMode, part); 
-                let val = seal.vars.intGet(ctx, realName)[0];
-                totalPool += val;
-                expressionText += `${part}(${val})+`;
+        for (let token of tokens) {
+            if (token === '+') {
+                currentSign = 1;
+                expressionText += "+";
+                continue;
             }
+            if (token === '-') {
+                currentSign = -1;
+                expressionText += "-";
+                continue;
+            }
+
+            let val = 0;
+            if (/^\d+$/.test(token)) {
+                val = parseInt(token);
+                expressionText += `${val}`;
+            } else {
+                let realName = getRealVarName(targetMode, token); 
+                let storedVal = seal.vars.intGet(ctx, realName)[0];
+                val = storedVal;
+                expressionText += `${token}(${val})`;
+            }
+            
+            totalPool += (val * currentSign);
         }
         
         if (expressionText.endsWith('+')) expressionText = expressionText.slice(0, -1);
