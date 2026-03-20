@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.5
-// @description    支持V5/V20双规则。改正V20暴击规则，新增检定语法的减号支持。
-// @timestamp      1770120820
+// @version        1.8.6
+// @description    支持V5/V20双规则。改正V5兽性失败规则。
+// @timestamp      1774016380
 // @license        Apache-2
 // @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
@@ -12,7 +12,7 @@ if (seal.ext.find('vtm')) {
     seal.ext.unregister('vtm');
 }
 
-const ext = seal.ext.new('vtm', 'User', '1.8.2');
+const ext = seal.ext.new('vtm', 'User', '1.8.6');
 
 // --- 核心配置与辅助函数 ---
 
@@ -113,7 +113,7 @@ function calculateV5Roll(pool, difficulty, hunger, label) {
     const critPairs = Math.floor(tenCount / 2);
     successes += (critPairs * 2);
 
-    let statusText = "";
+let statusText = "";
     const isWin = successes >= difficulty;
     const hasCrit = critPairs > 0;
 
@@ -122,10 +122,15 @@ function calculateV5Roll(pool, difficulty, hunger, label) {
         else if (hasCrit) statusText = "暴击胜利";
         else statusText = `胜利 (余数 ${successes - difficulty})`;
     } else {
-        if (hungerOne) statusText = "兽性失败";
-        else if (successes === 0 && normalResults.length + hungerResults.length > 0) statusText = "彻底失败";
-        else if (successes === 0) statusText = "失败"; 
-        else statusText = `失败 (缺数 ${difficulty - successes})`;
+        if (hungerOne) {
+            statusText = "兽性失败";
+        } 
+        else if (successes === 0) {
+            statusText = "彻底失败";
+        } 
+        else {
+            statusText = `失败 (缺数 ${difficulty - successes})`;
+        }
     }
 
     let title = label ? `\nVtM V5 检定: ${label}` : `\nVtM V5 检定`;
