@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.6
-// @description    支持V5/V20双规则。改正V5兽性失败规则。
-// @timestamp      1774016380
+// @version        1.8.7
+// @description    支持V5/V20双规则。改正V5狂乱暴击名称。
+// @timestamp      1776007904
 // @license        Apache-2
 // @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
@@ -12,7 +12,7 @@ if (seal.ext.find('vtm')) {
     seal.ext.unregister('vtm');
 }
 
-const ext = seal.ext.new('vtm', 'User', '1.8.6');
+const ext = seal.ext.new('vtm', 'User', '1.8.7');
 
 // --- 核心配置与辅助函数 ---
 
@@ -118,7 +118,7 @@ let statusText = "";
     const hasCrit = critPairs > 0;
 
     if (isWin) {
-        if (hasCrit && hungerTen) statusText = "兽性暴击";
+        if (hasCrit && hungerTen) statusText = "狂乱暴击";
         else if (hasCrit) statusText = "暴击胜利";
         else statusText = `胜利 (余数 ${successes - difficulty})`;
     } else {
