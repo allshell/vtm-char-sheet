@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.7
-// @description    支持V5/V20双规则。改正V5狂乱暴击名称。
-// @timestamp      1776007904
+// @version        1.8.8
+// @description    支持V5/V20双规则。改正V5无难度输入时的失败计算逻辑。
+// @timestamp      1778408049
 // @license        Apache-2
 // @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
@@ -12,7 +12,7 @@ if (seal.ext.find('vtm')) {
     seal.ext.unregister('vtm');
 }
 
-const ext = seal.ext.new('vtm', 'User', '1.8.7');
+const ext = seal.ext.new('vtm', 'User', '1.8.8');
 
 // --- 核心配置与辅助函数 ---
 
@@ -114,7 +114,7 @@ function calculateV5Roll(pool, difficulty, hunger, label) {
     successes += (critPairs * 2);
 
 let statusText = "";
-    const isWin = successes >= difficulty;
+    const isWin = successes >= difficulty && successes > 0;
     const hasCrit = critPairs > 0;
 
     if (isWin) {
