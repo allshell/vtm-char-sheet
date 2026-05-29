@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.8
-// @description    支持V5/V20双规则。改正V5无难度输入时的失败计算逻辑。
-// @timestamp      1778408049
+// @version        1.8.9
+// @description    支持V5/V20双规则。追加饥渴值直接增减与查询功能。
+// @timestamp      1780068894
 // @license        Apache-2
 // @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
@@ -12,7 +12,7 @@ if (seal.ext.find('vtm')) {
     seal.ext.unregister('vtm');
 }
 
-const ext = seal.ext.new('vtm', 'User', '1.8.8');
+const ext = seal.ext.new('vtm', 'User', '1.8.9');
 
 // --- 核心配置与辅助函数 ---
 
@@ -359,9 +359,71 @@ function handleSTCommand(ctx, msg, cmdArgs, targetMode) {
         return;
     }
 
-    rawArgs = rawArgs.replace(/＝/g, '=');
+    rawArgs = rawArgs.replace(/＝/g, '=').replace(/＋/g, '+').replace(/－/g, '-');
     let tokens = rawArgs.split(/\s+/);
-    let setList = [], delList = [], setKeys = [], delKeys = [];
+    let setList = [], delList = [], queryList = [], setKeys = [], delKeys = [];
+
+    for (let token of tokens) {
+        if (token.indexOf('=') > -1) {
+            let parts = token.split('=');
+            let key = parts[0];
+            let val = parseInt(parts[1]);
+            if (key && !isNaN(val)) {
+                seal.vars.intSet(ctx, getRealVarName(targetMode, key), val);
+                setList.push(`${key}=${val}`);
+                setKeys.push(key);
+            }
+        } else if (token.indexOf('+') > -1 && !token.startsWith('+')) {
+            let parts = token.split('+');
+            let key = parts[0];
+            let diff = parseInt(parts[1]);
+            if (key && !isNaN(diff)) {
+                let oldVal = seal.vars.intGet(ctx, getRealVarName(targetMode, key))[0] || 0;
+                let newVal = oldVal + diff;
+                seal.vars.intSet(ctx, getRealVarName(targetMode, key), newVal);
+                setList.push(`${key}=${newVal}`);
+                setKeys.push(key);
+            }
+        } else if (token.indexOf('-') > -1 && !token.startsWith('-')) {
+            let parts = token.split('-');
+            let key = parts[0];
+            let diff = parseInt(parts[1]);
+            if (key && !isNaN(diff)) {
+                let oldVal = seal.vars.intGet(ctx, getRealVarName(targetMode, key))[0] || 0;
+                let newVal = oldVal - diff;
+                seal.vars.intSet(ctx, getRealVarName(targetMode, key), newVal);
+                setList.push(`${key}=${newVal}`);
+                setKeys.push(key);
+            }
+        } else if (token.startsWith('d') && token.length > 1 && !token.includes('+') && !token.includes('-')) {
+            let key = token.substring(1);
+            seal.vars.intSet(ctx, getRealVarName(targetMode, key), 0);
+            delList.push(key);
+            delKeys.push(key);
+        } else if (token) {
+            let val = seal.vars.intGet(ctx, getRealVarName(targetMode, token))[0] || 0;
+            queryList.push(`${token}: ${val}`);
+        }
+    }
+
+    if (setKeys.length > 0) updateStoredKeys(ctx, targetMode, setKeys, false);
+    if (delKeys.length > 0) updateStoredKeys(ctx, targetMode, delKeys, true);
+
+    if (setList.length === 0 && delList.length === 0 && queryList.length === 0) {
+        seal.replyToSender(ctx, msg, `指令格式错误。\n全卡: .vst\n录入: .vst 力量=3\n增减: .vst 饥渴+1 或 HP-2\n查询: .vst 饥渴\n删除: .vst d力量`);
+    } else {
+        let output = "";
+        if (queryList.length > 0) output += `【${ctx.player.name}】状态查询: ${queryList.join(", ")}\n`;
+        if (setList.length > 0) output += `更新[${targetMode}]: ${setList.join(", ")}\n`;
+        if (delList.length > 0) output += `删除[${targetMode}]: ${delList.join(", ")}`;
+        
+        // 当只有查询操作时，不显示“更新完毕”前缀
+        if (setList.length === 0 && delList.length === 0) {
+            seal.replyToSender(ctx, msg, output.trim());
+        } else {
+            seal.replyToSender(ctx, msg, `数据处理完毕:\n${output.trim()}`);
+        }
+    }
 
     for (let token of tokens) {
         if (token.indexOf('=') > -1) {
