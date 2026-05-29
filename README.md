@@ -1,11 +1,11 @@
 本项目包含两个主要工具：
 
-1. [#VtM-骰子插件-v_1.8.8](https://github.com/allshell/vtm-char-sheet/tree/main?tab=readme-ov-file#vtm-%E9%AA%B0%E5%AD%90%E6%8F%92%E4%BB%B6-v_185)
+1. [#VtM-骰子插件-v_1.8.9](https://github.com/allshell/vtm-char-sheet/tree/main?tab=readme-ov-file#vtm-%E9%AA%B0%E5%AD%90%E6%8F%92%E4%BB%B6-v_185)
 2. [#与插件配套的录卡工具](https://github.com/allshell/vtm-char-sheet/tree/main?tab=readme-ov-file#vtm-%E8%A7%92%E8%89%B2%E5%8D%A1%E5%BD%95%E5%85%A5%E8%BE%85%E5%8A%A9%E5%B7%A5%E5%85%B7-v_002)
 
-# VtM 骰子插件 v_1.8.8
+# VtM 骰子插件 v_1.8.9
 
-本插件为 **SealDice (海豹骰)** 核心配套插件。下载项目中的插件文件 `vtm_1.8.8.js`，使用海豹骰核心加载 JS 插件并启动后，即可按需激活使用。
+本插件为 **SealDice (海豹骰)** 核心配套插件。下载项目中的插件文件 `vtm_1.8.9.js`，使用海豹骰核心加载 JS 插件并启动后，即可按需激活使用。
 
 本插件独有的VtM检定指令如下：
 
@@ -48,6 +48,11 @@
 - `.vst 项目=值` 将项目值录入角色卡（或更新角色卡中已有的同名项目值）
 - `.vst d项目` 删除角色卡中的指定项目
 - `.vst d!!!` 删除角色卡
+
+**V5版本饥渴值追踪**
+- `.vst 饥渴` 显示角色当前饥渴值
+- `.vst 饥渴+/-值` 直接增减角色饥渴值
+- 例：`.vst 饥渴+3`；`.vst 饥渴-1`
 
 **录卡后检定**
 - `.va属性+技能k难度` 成功录卡后，自动调用卡中的骰池和饥渴值进行检定，多个属性/技能之间以加号或减号连接，也可直接使用数字作为骰池加值。
@@ -95,7 +100,7 @@
 
 * 填写或核对完数据后，点击底部的 **“生成录卡指令”** 。
 
-* 点击 **“复制指令”**，将其发送至安装了 `vtm_1.8.8.js` 插件的 SealDice 窗口即可完成录卡 。
+* 点击 **“复制指令”**，将其发送至安装了 `vtm_1.8.9.js` 插件的 SealDice 窗口即可完成录卡 。
 
 ## Excel 坐标映射参考 (V5)
 
