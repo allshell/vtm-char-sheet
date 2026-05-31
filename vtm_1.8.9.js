@@ -417,42 +417,11 @@ function handleSTCommand(ctx, msg, cmdArgs, targetMode) {
         if (setList.length > 0) output += `更新[${targetMode}]: ${setList.join(", ")}\n`;
         if (delList.length > 0) output += `删除[${targetMode}]: ${delList.join(", ")}`;
         
-        // 当只有查询操作时，不显示“更新完毕”前缀
         if (setList.length === 0 && delList.length === 0) {
             seal.replyToSender(ctx, msg, output.trim());
         } else {
             seal.replyToSender(ctx, msg, `数据处理完毕:\n${output.trim()}`);
         }
-    }
-
-    for (let token of tokens) {
-        if (token.indexOf('=') > -1) {
-            let parts = token.split('=');
-            let key = parts[0];
-            let val = parseInt(parts[1]);
-            if (key && !isNaN(val)) {
-                seal.vars.intSet(ctx, getRealVarName(targetMode, key), val);
-                setList.push(`${key}=${val}`);
-                setKeys.push(key);
-            }
-        } else if (token.startsWith('d') && token.length > 1) {
-            let key = token.substring(1);
-            seal.vars.intSet(ctx, getRealVarName(targetMode, key), 0);
-            delList.push(key);
-            delKeys.push(key);
-        }
-    }
-
-    if (setKeys.length > 0) updateStoredKeys(ctx, targetMode, setKeys, false);
-    if (delKeys.length > 0) updateStoredKeys(ctx, targetMode, delKeys, true);
-
-    if (setList.length === 0 && delList.length === 0) {
-        seal.replyToSender(ctx, msg, `指令格式错误。\n查看: .vst\n录入: .vst 力量=3\n删除: .vst d力量`);
-    } else {
-        let output = "";
-        if (setList.length > 0) output += `录入[${targetMode}]: ${setList.join(", ")}\n`;
-        if (delList.length > 0) output += `删除[${targetMode}]: ${delList.join(", ")}`;
-        seal.replyToSender(ctx, msg, `更新完毕:\n${output.trim()}`);
     }
 }
 
