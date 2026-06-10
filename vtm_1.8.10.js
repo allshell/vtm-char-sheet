@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name           VtM V5/V20 Rules & Character Sheet
 // @author         iavas, Helium_19
-// @version        1.8.9
-// @description    支持V5/V20双规则。追加饥渴值直接增减与查询功能。
-// @timestamp      1780068894
+// @version        1.8.10
+// @description    支持V5/V20双规则。改进在群聊中切换规则集的效果。
+// @timestamp      1781093056
 // @license        Apache-2
 // @homepageURL    https://github.com/allshell/vtm-char-sheet
 // ==/UserScript==
@@ -12,7 +12,7 @@ if (seal.ext.find('vtm')) {
     seal.ext.unregister('vtm');
 }
 
-const ext = seal.ext.new('vtm', 'User', '1.8.9');
+const ext = seal.ext.new('vtm', 'User', '1.8.10');
 
 // --- 核心配置与辅助函数 ---
 
@@ -22,13 +22,20 @@ const PREFIX_V20 = "v20_";
 const KEYS_LIST_V5 = "VtM_V5_Keys";
 const KEYS_LIST_V20 = "VtM_V20_Keys";
 
+function getModeKey(ctx) {
+    if (!ctx.isPrivate) {
+        return "$g" + MODE_KEY;
+    }
+    return MODE_KEY;
+}
+
 function getMode(ctx) {
-    let val = seal.vars.strGet(ctx, MODE_KEY)[0];
+    let val = seal.vars.strGet(ctx, getModeKey(ctx))[0];
     return (val && val.length > 0) ? val : "V5";
 }
 
 function setMode(ctx, mode) {
-    seal.vars.strSet(ctx, MODE_KEY, mode);
+    seal.vars.strSet(ctx, getModeKey(ctx), mode);
 }
 
 function getRealVarName(mode, rawName) {
